@@ -26,52 +26,10 @@ public class OneGlSurfaceView extends GLSurfaceView {
         // Set the Renderer for drawing on the GLSurfaceView
         setRenderer(mRenderer);
     }
-
-
-    private IntBuffer intBufferUtil(int[] arr) {
-        IntBuffer mBuffer;
-        // 初始化ByteBuffer，长度为arr数组的长度*4，因为一个int占4个字节
-        ByteBuffer qbb = ByteBuffer.allocateDirect(arr.length * 4);
-        // 数组排列用nativeOrder
-        qbb.order(ByteOrder.nativeOrder());
-        mBuffer = qbb.asIntBuffer();
-        mBuffer.put(arr);
-        mBuffer.position(0);
-        return mBuffer;
-    }
-
-    private FloatBuffer floatBufferUtil(float[] arr) {
-        FloatBuffer mBuffer;
-        // 初始化ByteBuffer，长度为arr数组的长度*4，因为一个int占4个字节
-        ByteBuffer qbb = ByteBuffer.allocateDirect(arr.length * 4);
-        // 数组排列用nativeOrder
-        qbb.order(ByteOrder.nativeOrder());
-        mBuffer = qbb.asFloatBuffer();
-        mBuffer.put(arr);
-        mBuffer.position(0);
-        return mBuffer;
-    }
-
-    private ShortBuffer shortBufferUtil(short[] arr) {
-        ShortBuffer mBuffer;
-        // 初始化ByteBuffer，长度为arr数组的长度*2，因为一个short占2个字节
-        ByteBuffer dlb = ByteBuffer.allocateDirect(
-                // (# of coordinate values * 2 bytes per short)
-                arr.length * 2);
-        dlb.order(ByteOrder.nativeOrder());
-        mBuffer = dlb.asShortBuffer();
-        mBuffer.put(arr);
-        mBuffer.position(0);
-        return mBuffer;
-    }
-
-
 }
 
 class OneGlRenderer implements GLSurfaceView.Renderer {
 
-    private Triangle triangle;
-    private Square square;
     private Point point;
 
     public void onSurfaceCreated(GL10 unused, EGLConfig config) {
@@ -96,44 +54,7 @@ class OneGlRenderer implements GLSurfaceView.Renderer {
     public void onSurfaceChanged(GL10 unused, int width, int height) {
         //
         GLES20.glViewport(0, 0, width, height);
-    }
-
-
-    private IntBuffer intBufferUtil(int[] arr) {
-        IntBuffer mBuffer;
-        // 初始化ByteBuffer，长度为arr数组的长度*4，因为一个int占4个字节
-        ByteBuffer qbb = ByteBuffer.allocateDirect(arr.length * 4);
-        // 数组排列用nativeOrder
-        qbb.order(ByteOrder.nativeOrder());
-        mBuffer = qbb.asIntBuffer();
-        mBuffer.put(arr);
-        mBuffer.position(0);
-        return mBuffer;
-    }
-
-    private FloatBuffer floatBufferUtil(float[] arr) {
-        FloatBuffer mBuffer;
-        // 初始化ByteBuffer，长度为arr数组的长度*4，因为一个int占4个字节
-        ByteBuffer qbb = ByteBuffer.allocateDirect(arr.length * 4);
-        // 数组排列用nativeOrder
-        qbb.order(ByteOrder.nativeOrder());
-        mBuffer = qbb.asFloatBuffer();
-        mBuffer.put(arr);
-        mBuffer.position(0);
-        return mBuffer;
-    }
-
-    private ShortBuffer shortBufferUtil(short[] arr) {
-        ShortBuffer mBuffer;
-        // 初始化ByteBuffer，长度为arr数组的长度*2，因为一个short占2个字节
-        ByteBuffer dlb = ByteBuffer.allocateDirect(
-                // (# of coordinate values * 2 bytes per short)
-                arr.length * 2);
-        dlb.order(ByteOrder.nativeOrder());
-        mBuffer = dlb.asShortBuffer();
-        mBuffer.put(arr);
-        mBuffer.position(0);
-        return mBuffer;
+        point.onSurfaceChanged(unused, width, height);
     }
 
     public static int loadShader(int type, String shaderCode) {
@@ -153,17 +74,20 @@ class Point {
      * 顶点着色器
      */
     private static final String VERTEX_SHADER = "" +
+            // mat4：4×4的矩阵
+            "uniform mat4 u_Matrix;\n" +
             // vec4：4个分量的向量：x、y、z、w
             "attribute vec4 a_Position;\n" +
             "void main()\n" +
             "{\n" +
             // gl_Position：GL中默认定义的输出变量，决定了当前顶点的最终位置
-            "    gl_Position = a_Position;\n" +
+            "    gl_Position = u_Matrix * a_Position;\n" +
             // gl_PointSize：GL中默认定义的输出变量，决定了当前顶点的大小
             "    gl_PointSize = 40.0;\n" +
             "}";
 
     /**
+     * /**
      * 片段着色器
      */
     private static final String FRAGMENT_SHADER = "" +
@@ -177,16 +101,24 @@ class Point {
             "}";
     private final int mProgram;
     private final int uColorLocation;
+    private final ProjectionMatrixHelper projectionMatrix;
 
     Point() {
 
         mProgram = makeProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+        projectionMatrix = new ProjectionMatrixHelper(mProgram, "u_Matrix");
 // 获取顶点坐标属性在OpenGL程序中的索引
         int aPositionLocation = GLES20.glGetAttribLocation(mProgram, "a_Position");
 
 // 获取颜色Uniform在OpenGL程序中的索引
         uColorLocation = GLES20.glGetUniformLocation(mProgram, "u_Color");
-        FloatBuffer mVertexData = GlHelper.createFloatBuffer(new float[]{0, -1, 0, 0, 0, 0});
+        FloatBuffer mVertexData = GlHelper.createFloatBuffer(new float[]{0, 1, 0,
+                1, 1, 0,
+                -1, 0, 0,
+                0, 0, 0,
+                1, 0, 0,
+                0, -1, 0,
+                1, -1, 0});
 // 将缓冲区的指针移动到头部，保证数据是从最开始处读取
         mVertexData.position(0);
 // 关联顶点坐标属性和缓存数据
@@ -203,6 +135,7 @@ class Point {
         GLES20.glEnableVertexAttribArray(aPositionLocation);
     }
 
+
     public void draw() {
         // 步骤1：使用glClearColor设置的颜色，刷新Surface
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
@@ -211,7 +144,9 @@ class Point {
         GLES20.glUniform4f(uColorLocation, 0.0f, 0.0f, 1.0f, 1.0f);
 
         // 使用数组绘制图形：1.绘制的图形类型；2.从顶点数组读取的起点；3.从顶点数组读取的数据长度
-        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, 2);
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, 7);
+        GLES20.glUniform4f(uColorLocation, 0.0f, 1.0f, 1.0f, 1.0f);
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, 7);
     }
 
     /**
@@ -237,175 +172,8 @@ class Point {
         GLES20.glUseProgram(mProgram);
         return mProgram;
     }
-}
 
-class Triangle {
-    private final String vertexShaderCode =
-            "attribute vec4 vPosition;" +
-                    "void main() {" +
-                    "  gl_Position = vPosition;" +
-                    "}";
-
-    private final String fragmentShaderCode =
-            "precision mediump float;" +
-                    "uniform vec4 vColor;" +
-                    "void main() {" +
-                    "  gl_FragColor = vColor;" +
-                    "}";
-
-    private FloatBuffer vertexBuffer;
-
-    // number of coordinates per vertex in this array
-
-    static final int COORDS_PER_VERTEX = 3;
-    static float triangleCoords[] = {   // in counterclockwise order:
-            0.0f, 0.5f, 0.0f, // top 三维的坐标
-            -0.5f, -0.5f, 0.0f, // bottom left
-            0.5f, -0.5f, 0.0f  // bottom right
-    };
-
-    // Set color with red, green, blue and alpha (opacity) values
-    float color[] = {255, 0, 0, 1.0f};
-    private final int mProgram;
-    private int mPositionHandle;
-
-    public Triangle() {
-        // 初始化ByteBuffer，长度为arr数组的长度*4，因为一个float占4个字节
-        ByteBuffer bb = ByteBuffer.allocateDirect(triangleCoords.length * 4);
-        // 数组排列用nativeOrder
-        bb.order(ByteOrder.nativeOrder());
-        // 从ByteBuffer创建一个浮点缓冲区
-        vertexBuffer = bb.asFloatBuffer();
-        // 将坐标添加到FloatBuffer
-        vertexBuffer.put(triangleCoords);
-        // 设置缓冲区来读取第一个坐标
-        vertexBuffer.position(0);
-
-        // 创建空的OpenGL ES程序
-        mProgram = GLES20.glCreateProgram();
-
-        // 加载顶点着色器代码并添加到程序中
-        int vertexShader = OneGlRenderer.loadShader(GLES20.GL_VERTEX_SHADER,
-                vertexShaderCode);
-        GLES20.glAttachShader(mProgram, vertexShader);
-
-        // 加载片段着色器代码并添加到程序中
-        int fragmentShader = OneGlRenderer.loadShader(GLES20.GL_FRAGMENT_SHADER,
-                fragmentShaderCode);
-        GLES20.glAttachShader(mProgram, fragmentShader);
-
-        // 链接和创建OpenGL ES程序可执行文件
-        GLES20.glLinkProgram(mProgram);
-    }
-
-    private int mColorHandle;
-
-    private final int vertexCount = triangleCoords.length / COORDS_PER_VERTEX;
-    private final int vertexStride = COORDS_PER_VERTEX * 4; // 4 bytes per vertex
-
-    public void draw() {
-        // 将程序添加到OpenGL ES环境
-        GLES20.glUseProgram(mProgram);
-
-        // 获取顶点着色器的位置的句柄
-        mPositionHandle = GLES20.glGetAttribLocation(mProgram, "vPosition");
-        // 启用三角形顶点位置的句柄
-        GLES20.glEnableVertexAttribArray(mPositionHandle);
-        //准备三角形坐标数据
-        GLES20.glVertexAttribPointer(mPositionHandle, COORDS_PER_VERTEX,
-                GLES20.GL_FLOAT, false,
-                vertexStride, vertexBuffer);
-
-        // 获取片段着色器的颜色的句柄
-        mColorHandle = GLES20.glGetUniformLocation(mProgram, "vColor");
-        // 设置绘制三角形的颜色
-        GLES20.glUniform4fv(mColorHandle, 1, color, 0);
-
-        // 绘制三角形
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, vertexCount);
-
-        // 禁用顶点数组
-        GLES20.glDisableVertexAttribArray(mPositionHandle);
-    }
-
-
-}
-
-class Square {
-    private final String vertexShaderCode =
-            "attribute vec4 vPosition;" +
-                    "void main() {" +
-                    "  gl_Position = vPosition;" +
-                    "}";
-
-    private final String fragmentShaderCode =
-            "precision mediump float;" +
-                    "uniform vec4 vColor;" +
-                    "void main() {" +
-                    "  gl_FragColor = vColor;" +
-                    "}";
-    private FloatBuffer vertexBuffer;
-    private ShortBuffer drawListBuffer;
-
-    // number of coordinates per vertex in this array
-    static final int COORDS_PER_VERTEX = 3;
-    static float squareCoords[] = {
-            -0.5f, 0.5f, 0.0f,   // top left
-            -0.5f, -0.5f, 0.0f,   // bottom left
-            0.5f, -0.5f, 0.0f,   // bottom right
-            0.5f, 0.5f, 0.0f}; // top right
-
-    private short drawOrder[] = {0, 1, 2, 0, 2, 3}; // order to draw vertices
-    float color[] = {255, 0, 0, 1.0f};
-    private final int mProgram;
-    private int vertexCount = 4;
-    private final int vertexStride = COORDS_PER_VERTEX * 4; // 4 bytes per vertex
-
-    public Square() {
-        // 初始化ByteBuffer，长度为arr数组的长度*4，因为一个float占4个字节
-        ByteBuffer bb = ByteBuffer.allocateDirect(squareCoords.length * 4);
-        bb.order(ByteOrder.nativeOrder());
-        vertexBuffer = bb.asFloatBuffer();
-        vertexBuffer.put(squareCoords);
-        vertexBuffer.position(0);
-
-        // 初始化ByteBuffer，长度为arr数组的长度*2，因为一个short占2个字节
-        ByteBuffer dlb = ByteBuffer.allocateDirect(drawOrder.length * 2);
-        dlb.order(ByteOrder.nativeOrder());
-        drawListBuffer = dlb.asShortBuffer();
-        drawListBuffer.put(drawOrder);
-        drawListBuffer.position(0);
-
-        mProgram = GLES20.glCreateProgram();
-        int vertexShader = OneGlRenderer.loadShader(GLES20.GL_VERTEX_SHADER,
-                vertexShaderCode);
-        GLES20.glAttachShader(mProgram, vertexShader);
-        int fragmentShader = OneGlRenderer.loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentShaderCode);
-        GLES20.glAttachShader(mProgram, fragmentShader);
-
-        GLES20.glLinkProgram(mProgram);
-    }
-
-    public void draw() {
-        GLES20.glUseProgram(mProgram);
-        // 获取顶点着色器的位置的句柄
-        int mPositionHandle = GLES20.glGetAttribLocation(mProgram, "vPosition");
-        // 启用三角形顶点位置的句柄
-        GLES20.glEnableVertexAttribArray(mPositionHandle);
-        //准备三角形坐标数据
-        GLES20.glVertexAttribPointer(mPositionHandle, COORDS_PER_VERTEX,
-                GLES20.GL_FLOAT, false,
-                vertexStride, vertexBuffer);
-
-        // 获取片段着色器的颜色的句柄
-        int mColorHandle = GLES20.glGetUniformLocation(mProgram, "vColor");
-        // 设置绘制三角形的颜色
-        GLES20.glUniform4fv(mColorHandle, 1, color, 0);
-
-        // 绘制三角形
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, vertexCount);
-
-        // 禁用顶点数组
-        GLES20.glDisableVertexAttribArray(mPositionHandle);
+    public void onSurfaceChanged(GL10 unused, int width, int height) {
+        projectionMatrix.enable(width, height);
     }
 }
