@@ -186,7 +186,7 @@ class Point {
 
 // 获取颜色Uniform在OpenGL程序中的索引
         uColorLocation = GLES20.glGetUniformLocation(mProgram, "u_Color");
-        FloatBuffer mVertexData = GlHelper.createFloatBuffer(new float[]{0, 0, 0});
+        FloatBuffer mVertexData = GlHelper.createFloatBuffer(new float[]{0, -1, 0, 0, 0, 0});
 // 将缓冲区的指针移动到头部，保证数据是从最开始处读取
         mVertexData.position(0);
 // 关联顶点坐标属性和缓存数据
@@ -211,7 +211,7 @@ class Point {
         GLES20.glUniform4f(uColorLocation, 0.0f, 0.0f, 1.0f, 1.0f);
 
         // 使用数组绘制图形：1.绘制的图形类型；2.从顶点数组读取的起点；3.从顶点数组读取的数据长度
-        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, 1);
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, 2);
     }
 
     /**
